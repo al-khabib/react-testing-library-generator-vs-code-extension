@@ -1,0 +1,1 @@
+# react-testing-library-generator-vs-code-extension
