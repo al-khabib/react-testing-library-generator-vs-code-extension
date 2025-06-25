@@ -1,6 +1,6 @@
-# rtl-ai-generator README
+# rtl-test-generator-ai README
 
-This is the README for your extension "rtl-ai-generator". After writing up a brief description, we recommend including the following sections.
+This is the README for your extension "rtl-test-generator-ai". After writing up a brief description, we recommend including the following sections.
 
 ## Features
 
