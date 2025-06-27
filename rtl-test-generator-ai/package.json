@@ -9,15 +9,33 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "rtl-test-generator-ai.helloWorld",
-        "title": "Hello World"
+        "command": "rtl-test-generator-ai.generateTest",
+        "title": "Generate RTL Test with LLM"
       }
-    ]
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "rtl-test-generator-ai.generateTest",
+          "when": "resourceLangId == typescript || resourceLangId == typescriptreact",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "rtl-test-generator-ai.generateTest",
+          "when": "resourceLangId == typescript || resourceLangId == typescriptreact"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

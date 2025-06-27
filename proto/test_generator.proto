@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package testgenerator;
+
+service TestGeneratorService {
+  rpc GenerateTest(TestRequest) returns (TestResponse);
+}
+
+message TestRequest {
+  string component_code = 1;
+  string component_name = 2;
+  string file_path = 3;
+}
+
+message TestResponse {
+  string test_code = 1;
+  bool success = 2;
+  string error_message = 3;
+}

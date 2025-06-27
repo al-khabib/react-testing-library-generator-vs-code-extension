@@ -1,26 +1,153 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from 'vscode'
+import * as fs from 'fs'
+import * as path from 'path'
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+  console.log('RTL Test Generator AI is now active!')
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "rtl-test-generator-ai" is now active!');
+  let disposable = vscode.commands.registerCommand(
+    'rtl-test-generator-ai.generateTest',
+    async (uri: vscode.Uri) => {
+      try {
+        const filePath =
+          uri?.fsPath || vscode.window.activeTextEditor?.document.fileName
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('rtl-test-generator-ai.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from ai-rtl-test-generator!');
-	});
+        if (!filePath) {
+          vscode.window.showErrorMessage('No file selected')
+          return
+        }
 
-	context.subscriptions.push(disposable);
+        if (!isReactComponentFile(filePath)) {
+          vscode.window.showWarningMessage(
+            'Please select a React component file (.tsx or .ts)'
+          )
+          return
+        }
+
+        const fileContent = fs.readFileSync(filePath, 'utf8')
+
+        if (!isReactComponent(fileContent)) {
+          vscode.window.showWarningMessage(
+            'This file does not appear to contain a React component'
+          )
+          return
+        }
+
+        const componentName = extractComponentName(fileContent, filePath)
+
+        // Show progress
+        vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Generating tests for ${componentName}...`,
+            cancellable: false
+          },
+          async (progress) => {
+            progress.report({ increment: 0 })
+
+            // Generate test content (placeholder for now)
+            const testContent = generateBasicTestTemplate(
+              componentName,
+              fileContent
+            )
+
+            progress.report({ increment: 50 })
+
+            // Create test file
+            const testFilePath = createTestFile(filePath, testContent)
+
+            progress.report({ increment: 100 })
+
+            // Open the generated test file
+            const document = await vscode.workspace.openTextDocument(
+              testFilePath
+            )
+            await vscode.window.showTextDocument(document)
+
+            vscode.window.showInformationMessage(
+              `Generated test file: ${path.basename(testFilePath)}`
+            )
+          }
+        )
+      } catch (error) {
+        console.error('Error:', error)
+        vscode.window.showErrorMessage(`Error: ${error}`)
+      }
+    }
+  )
+
+  context.subscriptions.push(disposable)
 }
 
-// This method is called when your extension is deactivated
+function generateBasicTestTemplate(
+  componentName: string,
+  componentContent: string
+): string {
+  return `import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import ${componentName} from './${componentName}';
+
+describe('${componentName}', () => {
+  test('renders without crashing', () => {
+    render(<${componentName} />);
+  });
+
+  test('displays component content', () => {
+    render(<${componentName} />);
+    // Add your specific tests here
+  });
+});
+`
+}
+
+function createTestFile(originalFilePath: string, testContent: string): string {
+  const dir = path.dirname(originalFilePath)
+  const baseName = path.basename(
+    originalFilePath,
+    path.extname(originalFilePath)
+  )
+  const testFileName = `${baseName}.test.tsx`
+  const testFilePath = path.join(dir, testFileName)
+
+  fs.writeFileSync(testFilePath, testContent, 'utf8')
+  return testFilePath
+}
+
+// ... keep your existing helper functions
+function isReactComponentFile(filePath: string): boolean {
+  const ext = path.extname(filePath)
+  return ext === '.tsx' || ext === '.ts'
+}
+
+function isReactComponent(content: string): boolean {
+  const reactPatterns = [
+    /import.*React/,
+    /export.*function.*\(/,
+    /export.*const.*=/,
+    /export default function/,
+    /export default.*=>/,
+    /<[A-Z]/
+  ]
+
+  return reactPatterns.some((pattern) => pattern.test(content))
+}
+
+function extractComponentName(content: string, filePath: string): string {
+  const exportPatterns = [
+    /export\s+default\s+function\s+(\w+)/,
+    /export\s+default\s+(\w+)/,
+    /export\s+(?:const|function)\s+(\w+)/,
+    /function\s+(\w+)\s*\(/
+  ]
+
+  for (const pattern of exportPatterns) {
+    const match = content.match(pattern)
+    if (match) {
+      return match[1]
+    }
+  }
+
+  return path.basename(filePath, path.extname(filePath))
+}
+
 export function deactivate() {}
