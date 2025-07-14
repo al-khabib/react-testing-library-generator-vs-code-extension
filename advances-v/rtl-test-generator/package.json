@@ -9,18 +9,48 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:rtl-test-generator.generateSimpleTest"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "rtlTestGeneratorSidebar",
+          "title": "RTL Test",
+          "icon": "public/rtl-test-generator-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "rtlTestGeneratorSidebar": [
+        {
+          "id": "rtlTestGeneratorView",
+          "name": "Generate Tests",
+          "icon": "public/rtl-test-generator-icon.svg"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "rtl-test-generator.generateSimpleTest",
-        "title": "Generate Simple RTL Test",
-        "category": "RTL Test Tools"
+        "command": "rtl-test-generator.generateTest",
+        "title": "Generate RTL Test",
+        "category": "RTL Test Generator"
+      },
+      {
+        "command": "rtl-test-generator.helloWorld",
+        "title": "Hello World",
+        "category": "RTL Test Generator"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "rtl-test-generator.generateTest",
+          "group": "navigation@3",
+          "when": "resourceExtname =~ /\\.(ts|tsx)$/ && editorLangId == typescriptreact"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
