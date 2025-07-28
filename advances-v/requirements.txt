@@ -4,6 +4,6 @@ grpcio==1.66.1
 grpcio-tools==1.66.1
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.35
-transformers==4.44.2
+transformers
 torch==2.4.1
 bitsandbytes==0.43.3
