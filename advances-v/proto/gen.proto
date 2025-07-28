@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package gen;
+
+service Generator {
+  rpc GenerateTest(GenerateRequest) returns (GenerateResponse);
+}
+
+message GenerateRequest {
+  string source = 1;
+  string component_name = 2;
+}
+
+message GenerateResponse {
+  string test_code = 3;
+}
