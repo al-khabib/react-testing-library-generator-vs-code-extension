@@ -23,7 +23,23 @@
         "title": "Open React Test Generator Panel",
         "category": "React Test Generator"
       }
-    ]
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "extension.generateReactTests",
+          "when": "resourceLangId == typescriptreact",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "extension.generateReactTests",
+          "when": "resourceLangId == typescriptreact",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

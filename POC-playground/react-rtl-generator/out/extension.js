@@ -41,107 +41,73 @@ const fs = __importStar(require("fs/promises"));
 const llmClient_1 = require("../../llm-server/llmClient");
 const webviewContent_1 = require("../../vscode-webview/webviewContent");
 function activate(context) {
-    // 1. Command Palette: Old command
-    let generateDisposable = vscode.commands.registerCommand('extension.generateReactTests', async () => {
+    // Helper: open a Webview with preloaded test content & file path
+    async function openTestGenWebview(documentUri, initialTestCode) {
+        const panel = vscode.window.createWebviewPanel('testGenWebview', `Generate Test: ${path.basename(documentUri.fsPath)}`, vscode.ViewColumn.One, { enableScripts: true });
+        // Initialize the last file and test code stored in memory for saving
+        let currentTestCode = initialTestCode;
+        let currentFileUri = documentUri;
+        panel.webview.html = (0, webviewContent_1.getWebviewContent)(panel.webview, context.extensionUri, initialTestCode);
+        // Receive messages from the Webview UI
+        panel.webview.onDidReceiveMessage(async (message) => {
+            if (message.type === 'updateTestCode') {
+                currentTestCode = message.testCode;
+            }
+            else if (message.type === 'generateFile') {
+                // Get user input for test file name
+                const defaultTestFileName = `${path.basename(currentFileUri.fsPath, '.tsx')}.test.tsx`;
+                const newFileName = await vscode.window.showInputBox({
+                    prompt: 'Enter test file name',
+                    value: defaultTestFileName,
+                    validateInput: (value) => {
+                        if (!value || !value.endsWith('.tsx')) {
+                            return "File name must end with '.tsx'";
+                        }
+                        return null;
+                    }
+                });
+                if (!newFileName) {
+                    vscode.window.showWarningMessage('File generation cancelled');
+                    return;
+                }
+                // Construct full path of test file
+                const testFileUri = vscode.Uri.joinPath(vscode.Uri.file(path.dirname(currentFileUri.fsPath)), newFileName);
+                // Write the edited test code to disk
+                try {
+                    await fs.writeFile(testFileUri.fsPath, currentTestCode, 'utf-8');
+                    vscode.window.showInformationMessage(`Test file created: ${testFileUri.fsPath}`);
+                    panel.dispose();
+                }
+                catch (error) {
+                    vscode.window.showErrorMessage(`Failed to write test file: ${error.message}`);
+                }
+            }
+        });
+    }
+    // Modified command handler for 'extension.generateReactTests'
+    let disposable = vscode.commands.registerCommand('extension.generateReactTests', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
-            vscode.window.showErrorMessage('No file open.');
+            vscode.window.showErrorMessage('No active editor');
             return;
         }
-        const filePath = editor.document.fileName;
+        if (editor.document.languageId !== 'typescriptreact') {
+            vscode.window.showErrorMessage('Please open a TypeScript React (.tsx) file');
+            return;
+        }
+        const fileUri = editor.document.uri;
         const fileContent = editor.document.getText();
         try {
-            vscode.window.showInformationMessage('Generating React tests with Ollama...');
+            vscode.window.showInformationMessage('Generating React tests via Ollama...');
             const testCode = await (0, llmClient_1.generateTestsWithOllama)(fileContent);
-            const dirname = path.dirname(filePath);
-            const basename = path.basename(filePath, '.tsx');
-            const testFilePath = path.join(dirname, `${basename}.test.tsx`);
-            await fs.writeFile(testFilePath, testCode, 'utf-8');
-            vscode.window.showInformationMessage(`Test created: ${testFilePath}`);
+            // Clean testCode here if needed (strip markdown fences, etc.)
+            openTestGenWebview(fileUri, testCode);
         }
         catch (err) {
             vscode.window.showErrorMessage(`Failed to generate test: ${err.message}`);
         }
     });
-    // 2. Webview Panel: Rich UI
-    let panelDisposable = vscode.commands.registerCommand('extension.openTestGenPanel', async () => {
-        const panel = vscode.window.createWebviewPanel('testGenPanel', 'React Test Generator', vscode.ViewColumn.One, { enableScripts: true });
-        // Track generated test for save operation
-        let lastGenerated = {};
-        // Initial content
-        panel.webview.html = (0, webviewContent_1.getWebviewContent)(panel.webview, context.extensionUri);
-        // Listen for messages from UI
-        panel.webview.onDidReceiveMessage(async (message) => {
-            if (message.type === 'select') {
-                // Load component source from file system
-                try {
-                    const fileUri = vscode.Uri.file(path.join(vscode.workspace.rootPath || '', message.file));
-                    const componentSource = (await vscode.workspace.fs.readFile(fileUri)).toString();
-                    panel.webview.postMessage({
-                        type: 'status',
-                        status: 'Component loaded. Ready to generate test.'
-                    });
-                    lastGenerated.file = message.file;
-                    lastGenerated.testCode = undefined;
-                }
-                catch (err) {
-                    panel.webview.postMessage({
-                        type: 'status',
-                        status: 'Failed to load component.'
-                    });
-                }
-            }
-            else if (message.type === 'generate') {
-                // Find component, generate test
-                try {
-                    const componentPath = path.join(vscode.workspace.rootPath || '', message.file);
-                    const componentContent = await fs.readFile(componentPath, 'utf-8');
-                    const testCode = await (0, llmClient_1.generateTestsWithOllama)(componentContent);
-                    panel.webview.postMessage({
-                        type: 'preview',
-                        testContent: testCode,
-                        status: 'Test generated!'
-                    });
-                    lastGenerated.file = message.file;
-                    lastGenerated.testCode = testCode;
-                }
-                catch (err) {
-                    panel.webview.postMessage({
-                        type: 'status',
-                        status: 'Failed to generate test.'
-                    });
-                }
-            }
-            else if (message.type === 'save') {
-                // Save generated test
-                if (lastGenerated.file && lastGenerated.testCode) {
-                    try {
-                        const dirname = path.dirname(lastGenerated.file);
-                        const basename = path.basename(lastGenerated.file, '.tsx');
-                        const testFilePath = path.join(vscode.workspace.rootPath || '', dirname, `${basename}.test.tsx`);
-                        await fs.writeFile(testFilePath, lastGenerated.testCode, 'utf-8');
-                        panel.webview.postMessage({
-                            type: 'status',
-                            status: `Test saved: ${testFilePath}`
-                        });
-                    }
-                    catch (err) {
-                        panel.webview.postMessage({
-                            type: 'status',
-                            status: 'Failed to save test.'
-                        });
-                    }
-                }
-                else {
-                    panel.webview.postMessage({
-                        type: 'status',
-                        status: 'Nothing to save.'
-                    });
-                }
-            }
-        });
-    });
-    context.subscriptions.push(generateDisposable, panelDisposable);
+    context.subscriptions.push(disposable);
 }
 function deactivate() { }
 //# sourceMappingURL=extension.js.map
