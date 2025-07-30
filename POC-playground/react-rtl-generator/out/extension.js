@@ -41,70 +41,67 @@ const fs = __importStar(require("fs/promises"));
 const llmClient_1 = require("../../llm-server/llmClient");
 const webviewContent_1 = require("../../vscode-webview/webviewContent");
 function activate(context) {
-    // Helper: open a Webview with preloaded test content & file path
-    async function openTestGenWebview(documentUri, initialTestCode) {
-        const panel = vscode.window.createWebviewPanel('testGenWebview', `Generate Test: ${path.basename(documentUri.fsPath)}`, vscode.ViewColumn.One, { enableScripts: true });
-        // Initialize the last file and test code stored in memory for saving
-        let currentTestCode = initialTestCode;
-        let currentFileUri = documentUri;
-        panel.webview.html = (0, webviewContent_1.getWebviewContent)(panel.webview, context.extensionUri, initialTestCode);
-        // Receive messages from the Webview UI
-        panel.webview.onDidReceiveMessage(async (message) => {
-            if (message.type === 'updateTestCode') {
-                currentTestCode = message.testCode;
-            }
-            else if (message.type === 'generateFile') {
-                // Get user input for test file name
-                const defaultTestFileName = `${path.basename(currentFileUri.fsPath, '.tsx')}.test.tsx`;
-                const newFileName = await vscode.window.showInputBox({
-                    prompt: 'Enter test file name',
-                    value: defaultTestFileName,
-                    validateInput: (value) => {
-                        if (!value || !value.endsWith('.tsx')) {
-                            return "File name must end with '.tsx'";
-                        }
-                        return null;
-                    }
-                });
-                if (!newFileName) {
-                    vscode.window.showWarningMessage('File generation cancelled');
-                    return;
-                }
-                // Construct full path of test file
-                const testFileUri = vscode.Uri.joinPath(vscode.Uri.file(path.dirname(currentFileUri.fsPath)), newFileName);
-                // Write the edited test code to disk
-                try {
-                    await fs.writeFile(testFileUri.fsPath, currentTestCode, 'utf-8');
-                    vscode.window.showInformationMessage(`Test file created: ${testFileUri.fsPath}`);
-                    panel.dispose();
-                }
-                catch (error) {
-                    vscode.window.showErrorMessage(`Failed to write test file: ${error.message}`);
-                }
-            }
-        });
-    }
-    // Modified command handler for 'extension.generateReactTests'
-    let disposable = vscode.commands.registerCommand('extension.generateReactTests', async () => {
+    // Register command to generate tests with streaming UI
+    const disposable = vscode.commands.registerCommand('extension.generateReactTests', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
-            vscode.window.showErrorMessage('No active editor');
+            vscode.window.showErrorMessage('No active editor found');
             return;
         }
         if (editor.document.languageId !== 'typescriptreact') {
             vscode.window.showErrorMessage('Please open a TypeScript React (.tsx) file');
             return;
         }
-        const fileUri = editor.document.uri;
-        const fileContent = editor.document.getText();
+        const componentUri = editor.document.uri;
+        const componentSource = editor.document.getText();
+        // Create & show the webview immediately with empty initial content
+        const panel = vscode.window.createWebviewPanel('testGenWebview', `Generate Test: ${path.basename(componentUri.fsPath)}`, vscode.ViewColumn.One, { enableScripts: true });
+        panel.webview.html = (0, webviewContent_1.getWebviewContent)(panel.webview, context.extensionUri, '');
+        // Store current edited test code
+        let currentTestCode = '';
+        // Handle messages from Webview (user edits / generate file)
+        panel.webview.onDidReceiveMessage(async (message) => {
+            if (message.type === 'updateTestCode') {
+                currentTestCode = message.testCode;
+            }
+            else if (message.type === 'generateFile') {
+                const defaultName = `${path.basename(componentUri.fsPath, '.tsx')}.test.tsx`;
+                const filename = await vscode.window.showInputBox({
+                    prompt: 'Test file name',
+                    value: defaultName,
+                    validateInput: (value) => {
+                        if (!value)
+                            return 'File name must not be empty';
+                        if (!value.endsWith('.tsx'))
+                            return 'File name must end with .tsx';
+                        return null;
+                    }
+                });
+                if (!filename) {
+                    vscode.window.showWarningMessage('File generation cancelled');
+                    return;
+                }
+                const testFileUri = vscode.Uri.joinPath(vscode.Uri.file(path.dirname(componentUri.fsPath)), filename);
+                try {
+                    await fs.writeFile(testFileUri.fsPath, currentTestCode, 'utf-8');
+                    vscode.window.showInformationMessage(`Test file saved: ${testFileUri.fsPath}`);
+                    panel.dispose();
+                }
+                catch (err) {
+                    vscode.window.showErrorMessage(`Failed to save file: ${err.message}`);
+                }
+            }
+        });
+        // Stream generation, send partial chunks to Webview as received
         try {
-            vscode.window.showInformationMessage('Generating React tests via Ollama...');
-            const testCode = await (0, llmClient_1.generateTestsWithOllama)(fileContent);
-            // Clean testCode here if needed (strip markdown fences, etc.)
-            openTestGenWebview(fileUri, testCode);
+            for await (const chunk of (0, llmClient_1.generateTestsStreamWithOllama)(componentSource)) {
+                panel.webview.postMessage({ type: 'stream', content: chunk });
+                currentTestCode += chunk;
+            }
+            panel.webview.postMessage({ type: 'stream-end', content: null });
         }
         catch (err) {
-            vscode.window.showErrorMessage(`Failed to generate test: ${err.message}`);
+            panel.webview.postMessage({ type: 'error', message: err.message });
         }
     });
     context.subscriptions.push(disposable);

@@ -3,19 +3,43 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateTestsWithOllama = generateTestsWithOllama;
+exports.generateTestsStreamWithOllama = generateTestsStreamWithOllama;
 const node_fetch_1 = __importDefault(require("node-fetch"));
-async function generateTestsWithOllama(componentSource) {
+async function* generateTestsStreamWithOllama(componentSource) {
     // Instruction prompt for the model
     const promptInstruction = `
-You are an expert React Testing Library and Jest developer.
-Generate a complete and valid TypeScript test file for the given React component.
-Output only valid TypeScript test code.
-Do NOT include any explanations, code block fences (like \`\`\`), or extra text. 
-Start at the first import statement and end at the last closing bracket of the test suite. 
-No extra commentary or description.
+You are a code generator for Jest and React Testing Library.
+You must generate a TypeScript test file for the provided React component.
+STRICT RULES:
+- Output ONLY the valid TypeScript RTL+Jest code as it would appear in a .test.tsx file.
+- NO markdown code fences.
+- NO <think> tags, explanations, steps, context, or any non-code lines.
+- NO bullet points, headers, or summary.
+- Do not include anything except the code lines to be saved to the test file.
+- Begin with the first import statement and end at the last closing bracket.
+If you output anything else, it will cause the file to fail to compile.
 
-<Component code here>
+BAD output example (do NOT do):
+<think>
+We will...
+- Import modules
+- Write a test
+
+GOOD output example (DO this):
+
+import { render, screen } from '@testing-library/react';
+import MyComponent from './MyComponent';
+
+describe('MyComponent', () => {
+  it('renders', () => {
+    render(<MyComponent />);
+    expect(screen.getByText('Hello')).toBeInTheDocument();
+  });
+});
+
+Now, generate the test file for this component:
+<-- REACT COMPONENT CODE HERE -->
+
 `;
     const fullPrompt = promptInstruction + '\n\nComponent code:\n' + componentSource;
     const response = await (0, node_fetch_1.default)('http://localhost:11434/api/generate', {
@@ -24,16 +48,47 @@ No extra commentary or description.
         body: JSON.stringify({
             model: 'deepseek-r1',
             prompt: fullPrompt,
-            stream: false
+            stream: true
         })
     });
-    const data = (await response.json());
-    if (!data ||
-        typeof data.response !== 'string' ||
-        data.response.trim().length === 0) {
-        throw new Error(`No usable response from Ollama: ${JSON.stringify(data)}`);
+    if (!response.ok || !response.body) {
+        throw new Error('Failed to stream response from Ollama');
     }
-    return cleanGeneratedTestCode(data.response);
+    // Node.js readable stream can be read via async iterator
+    for await (const chunk of response.body) {
+        const chunkStr = chunk.toString('utf-8');
+        // Sometimes chunkStr contains multiple JSON objects concatenated; split by newline
+        const lines = chunkStr.split('\n').filter((line) => line.trim());
+        for (const line of lines) {
+            try {
+                const parsed = JSON.parse(line);
+                if (parsed.response) {
+                    // Yield only the textual content from parsed response field
+                    yield parsed.response;
+                }
+            }
+            catch (e) {
+                // Ignore JSON parsing errors for partial chunks
+                // Optionally log for debugging
+            }
+        }
+    }
+    // const data = (await response.json()) as { response: string }
+    // if (
+    //   !data ||
+    //   typeof data.response !== 'string' ||
+    //   data.response.trim().length === 0
+    // ) {
+    //   throw new Error(`No usable response from Ollama: ${JSON.stringify(data)}`)
+    // }
+    // Clean the full response and return
+    // const cleanedCode = cleanGeneratedTestCode(fullResponse)
+    // if (!cleanedCode || cleanedCode.length === 0) {
+    //   throw new Error(
+    //     `No usable response from Ollama: ${JSON.stringify(fullResponse)}`
+    //   )
+    // }
+    // return cleanedCode
 }
 /**
  * Clean the generated code by stripping markdown fences or extra whitespace.
