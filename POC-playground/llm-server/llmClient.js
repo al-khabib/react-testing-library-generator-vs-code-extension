@@ -46,7 +46,7 @@ Now, generate the test file for this component:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: 'deepseek-r1',
+            model: 'deepseek-coder-v2',
             prompt: fullPrompt,
             stream: true
         })
