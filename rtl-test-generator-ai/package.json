@@ -9,32 +9,45 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onLanguage:typescript",
-    "onLanguage:typescriptreact"
-  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "rtl-test-generator-ai.generateTest",
-        "title": "Generate RTL Test with LLM"
+        "command": "testgen.generateForFile",
+        "title": "TestGen: Generate RTL Tests for Current File",
+        "category": "TestGen"
+      },
+      {
+        "command": "testgen.generateForFolder",
+        "title": "TestGen: Batch Generate Tests for Folder",
+        "category": "TestGen"
+      },
+      {
+        "command": "testgen.fixSelectorsInFile",
+        "title": "TestGen: Fix RTL Selectors in Current File",
+        "category": "TestGen"
       }
     ],
-    "menus": {
-      "explorer/context": [
-        {
-          "command": "rtl-test-generator-ai.generateTest",
-          "when": "resourceLangId == typescript || resourceLangId == typescriptreact",
-          "group": "navigation"
+    "configuration": {
+      "type": "object",
+      "title": "TestGen Settings",
+      "properties": {
+        "testgen.gatewayUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "FastAPI gateway base URL"
+        },
+        "testgen.model": {
+          "type": "string",
+          "default": "deepseek-coder-v2-lite-instruct",
+          "description": "Model name at the local OpenAI-compatible endpoint"
+        },
+        "testgen.outputDir": {
+          "type": "string",
+          "default": "__tests__",
+          "description": "Directory for generated test files (relative to component)"
         }
-      ],
-      "commandPalette": [
-        {
-          "command": "rtl-test-generator-ai.generateTest",
-          "when": "resourceLangId == typescript || resourceLangId == typescriptreact"
-        }
-      ]
+      }
     }
   },
   "scripts": {
