@@ -26,7 +26,7 @@
       "editor/context": [
         {
           "command": "rtlTestGenerator.generateTests",
-          "when": "resourceExtname =~ /\\.(jsx|tsx)$/ && !resourcePath =~ /\\.test\\./",
+          "when": "resourceExtname == .jsx || resourceExtname == .tsx",
           "group": "rtl"
         }
       ]
