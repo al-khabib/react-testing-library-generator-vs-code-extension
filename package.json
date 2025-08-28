@@ -1,0 +1,35 @@
+{
+  "name": "react-testing-library-generator-vs-code-extension",
+  "version": "0.1.0",
+  "description": "VS Code extension for automatic React Testing Library test generation using DeepSeek Coder v2",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter vscode-extension dev\" \"pnpm --filter api-gateway dev\" \"pnpm --filter model-service dev\" \"pnpm --filter template-service dev\"",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "type-check": "pnpm -r type-check",
+    "services:dev": "concurrently \"pnpm --filter api-gateway dev\" \"pnpm --filter model-service dev\" \"pnpm --filter template-service dev\" \"pnpm --filter dataset-service dev\"",
+    "extension:dev": "pnpm --filter vscode-extension dev"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitest/ui": "^1.1.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0"
+  },
+  "license": "MIT",
+  "author": "rtlgen-team"
+}
