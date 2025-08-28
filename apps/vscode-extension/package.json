@@ -1,0 +1,48 @@
+{
+  "name": "rtl-test-generator-ai",
+  "displayName": "RTL Test Generator AI",
+  "description": "Generate React Testing Library tests using AI",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing"
+  ],
+  "activationEvents": [
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "rtlTestGenerator.generateTests",
+        "title": "Generate RTL Tests",
+        "category": "RTL"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "rtlTestGenerator.generateTests",
+          "when": "resourceExtname =~ /\\.(jsx|tsx)$/ && !resourcePath =~ /\\.test\\./",
+          "group": "rtl"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "dev": "tsc -w",
+    "build": "tsc",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "shared": "workspace:*"
+  }
+}
