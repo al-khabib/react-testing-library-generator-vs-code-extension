@@ -1,87 +1,236 @@
 import * as vscode from "vscode";
 import * as path from "path";
 
-export async function generateTests(): Promise<void> {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) {
-    vscode.window.showErrorMessage("No active editor");
-    return;
-  }
-
-  const document = editor.document;
-  const componentCode = document.getText();
-  const filePath = document.fileName;
-
-  // Validate React component file
-  if (![".jsx", ".tsx"].includes(path.extname(filePath))) {
-    vscode.window.showErrorMessage(
-      "Please open a React component (.jsx or .tsx)",
-    );
-    return;
-  }
-
+export async function generateTests(uri?: vscode.Uri): Promise<void> {
   try {
+    // Get current file or selected file
+    const targetUri = uri || vscode.window.activeTextEditor?.document.uri;
+    if (!targetUri) {
+      vscode.window.showErrorMessage("No file selected");
+      return;
+    }
+
+    // Validate file type
+    const ext = path.extname(targetUri.fsPath);
+    if (![".js", ".jsx", ".ts", ".tsx"].includes(ext)) {
+      vscode.window.showErrorMessage(
+        "Please select a React component file (.js, .jsx, .ts, .tsx)",
+      );
+      return;
+    }
+
+    // Skip test files
+    if (
+      targetUri.fsPath.includes(".test.") ||
+      targetUri.fsPath.includes(".spec.")
+    ) {
+      vscode.window.showErrorMessage("Cannot generate tests for test files");
+      return;
+    }
+
+    // Read component code
+    const document = await vscode.workspace.openTextDocument(targetUri);
+    const componentCode = document.getText();
+
+    if (!componentCode.trim()) {
+      vscode.window.showErrorMessage("File is empty");
+      return;
+    }
+
+    // Get component name for display
+    const componentName = path.basename(targetUri.fsPath, ext);
+
+    // Show progress with more steps
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: "Generating RTL tests...",
-        cancellable: false,
+        title: `RTL Test Generator`,
+        cancellable: true,
       },
-      async (progress) => {
-        progress.report({ increment: 0, message: "Sending to AI..." });
+      async (progress, token) => {
+        progress.report({
+          increment: 0,
+          message: `Analyzing ${componentName}...`,
+        });
+
+        if (token.isCancellationRequested) return;
 
         // Call backend API
-        const response = await fetch(
-          "http://localhost:7070/api/generate-tests",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              componentCode,
-              filePath,
-              testStyle: "comprehensive",
-            }),
-          },
+        progress.report({
+          increment: 25,
+          message: "Connecting to AI service...",
+        });
+
+        const apiResponse = await callBackendAPI(
+          componentCode,
+          targetUri.fsPath,
+          "comprehensive",
         );
 
-        progress.report({ increment: 50, message: "Processing response..." });
+        if (token.isCancellationRequested) return;
 
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
+        progress.report({ increment: 75, message: "Processing test code..." });
+
+        if (!apiResponse.success) {
+          throw new Error(apiResponse.error || "Unknown error from backend");
         }
 
-        const data = (await response.json()) as {
-          success: boolean;
-          error?: string;
-          testCode?: string;
-        };
+        progress.report({ increment: 90, message: "Creating test file..." });
 
-        if (!data.success) {
-          throw new Error(data.error || "Unknown error");
+        // Create and open test file
+        const testFilePath = getTestFilePath(targetUri.fsPath);
+        await createTestFile(testFilePath, apiResponse.testCode);
+
+        progress.report({ increment: 100, message: "Done!" });
+
+        // Show success message with options
+        const action = await vscode.window.showInformationMessage(
+          `✅ RTL tests generated for ${componentName}!`,
+          "Open Test File",
+          "Generate Different Style",
+          "Copy to Clipboard",
+        );
+
+        if (action === "Open Test File") {
+          const testUri = vscode.Uri.file(testFilePath);
+          const testDocument = await vscode.workspace.openTextDocument(testUri);
+          await vscode.window.showTextDocument(
+            testDocument,
+            vscode.ViewColumn.Beside,
+          );
+        } else if (action === "Generate Different Style") {
+          await showStylePicker(componentCode, targetUri.fsPath, componentName);
+        } else if (action === "Copy to Clipboard") {
+          await vscode.env.clipboard.writeText(apiResponse.testCode);
+          vscode.window.showInformationMessage(
+            "Test code copied to clipboard!",
+          );
         }
-
-        progress.report({ increment: 100, message: "Creating test file..." });
-
-        // Create test file
-        const testFilePath = getTestFilePath(filePath);
-        const testUri = vscode.Uri.file(testFilePath);
-
-        await vscode.workspace.fs.writeFile(
-          testUri,
-          new TextEncoder().encode(data.testCode),
-        );
-
-        // Open the test file
-        const testDocument = await vscode.workspace.openTextDocument(testUri);
-        await vscode.window.showTextDocument(testDocument);
-
-        vscode.window.showInformationMessage(
-          "RTL tests generated successfully!",
-        );
       },
     );
   } catch (error) {
+    console.error("Error generating tests:", error);
     vscode.window.showErrorMessage(`Failed to generate tests: ${error}`);
+  }
+}
+
+type BackendApiResponse = {
+  success: boolean;
+  testCode: string;
+  error?: string;
+};
+
+async function callBackendAPI(
+  componentCode: string,
+  filePath: string,
+  testStyle: string,
+): Promise<BackendApiResponse> {
+  const config = vscode.workspace.getConfiguration("rtlTestGeneratorAI");
+  const apiUrl = config.get("apiUrl", "http://localhost:7070");
+
+  const response = await fetch(`${apiUrl}/api/generate-tests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      componentCode,
+      filePath,
+      testStyle,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `API request failed: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return (await response.json()) as BackendApiResponse;
+}
+
+async function createTestFile(
+  testFilePath: string,
+  testCode: string,
+): Promise<void> {
+  const testUri = vscode.Uri.file(testFilePath);
+
+  // Check if file already exists
+  try {
+    await vscode.workspace.fs.stat(testUri);
+    const overwrite = await vscode.window.showWarningMessage(
+      "Test file already exists. Do you want to overwrite it?",
+      "Overwrite",
+      "Cancel",
+    );
+
+    if (overwrite !== "Overwrite") {
+      return;
+    }
+  } catch {
+    // File doesn't exist, which is fine
+  }
+
+  await vscode.workspace.fs.writeFile(
+    testUri,
+    new TextEncoder().encode(testCode),
+  );
+}
+
+async function showStylePicker(
+  componentCode: string,
+  filePath: string,
+  componentName: string,
+) {
+  const style = await vscode.window.showQuickPick(
+    [
+      {
+        label: "⚡ Minimal",
+        description: "Basic rendering and simple interaction tests",
+        detail: "Fast generation, covers essential functionality",
+        value: "minimal",
+      },
+      {
+        label: "📋 Comprehensive",
+        description: "Full test coverage with edge cases",
+        detail: "Thorough testing, includes error handling",
+        value: "comprehensive",
+      },
+      {
+        label: "♿ Accessibility Focused",
+        description: "Enhanced accessibility testing",
+        detail: "ARIA labels, keyboard navigation, screen readers",
+        value: "accessibility",
+      },
+    ],
+    {
+      placeHolder: "Choose test generation style",
+      title: `Generate tests for ${componentName}`,
+    },
+  );
+
+  if (style) {
+    // Regenerate with chosen style
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Generating ${style.label.replace(/[⚡📋♿]/g, "").trim()} tests...`,
+      },
+      async (progress) => {
+        const apiResponse = await callBackendAPI(
+          componentCode,
+          filePath,
+          style.value,
+        );
+
+        if (apiResponse.success) {
+          const testFilePath = getTestFilePath(filePath);
+          await createTestFile(testFilePath, apiResponse.testCode);
+
+          vscode.window.showInformationMessage(
+            `✅ ${style.label} tests generated!`,
+          );
+        }
+      },
+    );
   }
 }
 
