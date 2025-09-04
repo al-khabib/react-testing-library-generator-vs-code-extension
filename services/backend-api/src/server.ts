@@ -135,8 +135,39 @@ async function checkOllama(): Promise<boolean> {
   }
 }
 
+async function verifyOllamaSetup(): Promise<void> {
+  logger.info("Checking Ollama connection...");
+
+  try {
+    // Check if Ollama is running
+    const response = await fetch("http://localhost:11434/api/tags", {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      logger.error(
+        `Ollama API returned status: ${response.status}. Is Ollama running on localhost:11434?`,
+      );
+      process.exit(1);
+    }
+
+    const data = (await response.json()) as { models?: { name: string }[] };
+
+    process.exit(1);
+  } catch (error) {
+    logger.error(
+      "Ollama connection failed. Make sure Ollama is running and deepseek-coder-v2 model is installed.",
+      error,
+    );
+    process.exit(1);
+  }
+
+  logger.info("Ollama is connected and ready.");
+}
+
 const start = async () => {
   try {
+    await verifyOllamaSetup();
     await fastify.listen({ port: 7070, host: "0.0.0.0" });
     logger.info("Backend API running on port 7070");
     logger.info("Ready to generate RTL tests!");
