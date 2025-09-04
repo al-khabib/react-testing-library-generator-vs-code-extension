@@ -153,7 +153,16 @@ async function verifyOllamaSetup(): Promise<void> {
 
     const data = (await response.json()) as { models?: { name: string }[] };
 
-    process.exit(1);
+    // Check if deepseek-coder-v2 model is installed
+    const hasModel = data.models?.some(
+      (model) => model.name === "deepseek-coder-v2:latest",
+    );
+    if (!hasModel) {
+      logger.error(
+        "deepseek-coder-v2 model is not installed in Ollama. Please install it.",
+      );
+      process.exit(1);
+    }
   } catch (error) {
     logger.error(
       "Ollama connection failed. Make sure Ollama is running and deepseek-coder-v2 model is installed.",
