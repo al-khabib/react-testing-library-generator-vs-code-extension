@@ -2,6 +2,7 @@
   "name": "rtl-test-generator-ai",
   "displayName": "RTL Test Generator AI",
   "description": "Generate React Testing Library tests using AI",
+  "publisher": "BakhteeArslan",
   "version": "0.1.0",
   "engines": {
     "vscode": "^1.85.0"
@@ -42,7 +43,5 @@
     "@vscode/vsce": "^2.22.0",
     "typescript": "^5.3.3"
   },
-  "dependencies": {
-    "shared": "workspace:*"
-  }
+  "dependencies": {}
 }
