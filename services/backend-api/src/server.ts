@@ -113,15 +113,35 @@ Test code:`;
 }
 
 function cleanupTestCode(response: string): string {
-  const codeMatch = response.match(/``````/);
-  if (codeMatch) {
-    return codeMatch[1].trim();
+  let cleaned = response.trim();
+
+  // Remove markdown code blocks - be more aggressive with the regex
+  cleaned = cleaned.replace(/^```[a-z]*\s*/i, "");
+  cleaned = cleaned.replace(/^\s*```$/gm, "");
+
+  // Remove common prefixes
+  cleaned = cleaned.replace(
+    /^(?:Here'?s?\s+(?:the\s+)?)?(?:test\s+)?code:?\s*/i,
+    "",
+  );
+
+  // Ensure it starts with actual code
+  const lines = cleaned.split("\n");
+  const firstCodeLine = lines.findIndex((line) => {
+    const trimmed = line.trim();
+    return (
+      trimmed.startsWith("import ") ||
+      trimmed.startsWith("describe(") ||
+      trimmed.startsWith("test(") ||
+      trimmed.startsWith("it(")
+    );
+  });
+
+  if (firstCodeLine > 0) {
+    cleaned = lines.slice(firstCodeLine).join("\n");
   }
 
-  return response
-    .replace(/^Here's.*?:\s*/i, "")
-    .replace(/^This test.*?:\s*/i, "")
-    .trim();
+  return cleaned.trim();
 }
 
 async function checkOllama(): Promise<boolean> {

@@ -1,4 +1,3 @@
-```tsx
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -13,7 +12,7 @@ describe('TestComponent', () => {
   });
 
   it('calls onClick function when button is clicked', async () => {
-    userEvent.click(screen.getByRole('button', { name: /click me/i }));
+    userEvent.click(screen.getByRole('button', { name: /Click me/i }));
     expect(onClickMock).toHaveBeenCalledTimes(1);
   });
 
@@ -24,8 +23,9 @@ describe('TestComponent', () => {
 
   it('is accessible with proper aria-labels and roles', () => {
     render(<TestComponent name="Jane" onClick={onClickMock} />);
-    expect(screen.getByRole('heading', { name: /hello jane/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /click me/i })).toBeInTheDocument();
+    const heading = screen.getByRole('heading', { name: /Hello Jane/i });
+    expect(heading).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: /Click me/i });
+    expect(button).toBeInTheDocument();
   });
 });
-```
