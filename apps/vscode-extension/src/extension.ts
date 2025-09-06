@@ -27,3 +27,7 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   console.log("RTL Test Generator AI deactivated");
 }
+
+// get the extension on different machine
+// fine tune it
+//

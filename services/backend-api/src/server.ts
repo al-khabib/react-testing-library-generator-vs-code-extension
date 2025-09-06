@@ -74,7 +74,8 @@ fastify.post<{ Body: GenerateTestRequest; Reply: GenerateTestResponse }>(
 
       return {
         success: true,
-        testCode: cleanupTestCode(ollamaData.response),
+        // testCode: cleanupTestCode(ollamaData.response),
+        testCode: ollamaData.response,
       };
     } catch (error) {
       logger.error("Generate tests error:", error);
@@ -108,40 +109,41 @@ Rules:
 - Use describe/test structure
 - Focus on accessibility where possible
 - Generate ONLY the test code, no explanations
+- Neglect the first 6 characters, and the last 3 characters if they are backticks
 
 Test code:`;
 }
 
 function cleanupTestCode(response: string): string {
-  let cleaned = response.trim();
+  // let cleaned = response.trim();
 
-  // Remove markdown code blocks - be more aggressive with the regex
-  cleaned = cleaned.replace(/^```[a-z]*\s*/i, "");
-  cleaned = cleaned.replace(/^\s*```$/gm, "");
+  // // Remove markdown code blocks - be more aggressive with the regex
+  // cleaned = cleaned.replace(/^```[a-z]*\s*/i, "");
+  // cleaned = cleaned.replace(/^\s*```$/gm, "");
 
-  // Remove common prefixes
-  cleaned = cleaned.replace(
-    /^(?:Here'?s?\s+(?:the\s+)?)?(?:test\s+)?code:?\s*/i,
-    "",
-  );
+  // // Remove common prefixes
+  // cleaned = cleaned.replace(
+  //   /^(?:Here'?s?\s+(?:the\s+)?)?(?:test\s+)?code:?\s*/i,
+  //   "",
+  // );
 
-  // Ensure it starts with actual code
-  const lines = cleaned.split("\n");
-  const firstCodeLine = lines.findIndex((line) => {
-    const trimmed = line.trim();
-    return (
-      trimmed.startsWith("import ") ||
-      trimmed.startsWith("describe(") ||
-      trimmed.startsWith("test(") ||
-      trimmed.startsWith("it(")
-    );
-  });
+  // // Ensure it starts with actual code
+  // const lines = cleaned.split("\n");
+  // const firstCodeLine = lines.findIndex((line) => {
+  //   const trimmed = line.trim();
+  //   return (
+  //     trimmed.startsWith("import ") ||
+  //     trimmed.startsWith("describe(") ||
+  //     trimmed.startsWith("test(") ||
+  //     trimmed.startsWith("it(")
+  //   );
+  // });
 
-  if (firstCodeLine > 0) {
-    cleaned = lines.slice(firstCodeLine).join("\n");
-  }
+  // if (firstCodeLine > 0) {
+  //   cleaned = lines.slice(firstCodeLine).join("\n");
+  // }
 
-  return cleaned.trim();
+  return "";
 }
 
 async function checkOllama(): Promise<boolean> {
