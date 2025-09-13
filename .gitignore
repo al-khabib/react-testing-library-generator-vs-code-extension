@@ -57,3 +57,7 @@ data/embeddings/*
 # Cache
 .cache/
 .turbo/
+
+# ignore .env files in subdirectories
+services/**/.env
+.env
