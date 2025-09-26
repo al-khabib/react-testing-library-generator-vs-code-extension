@@ -1,346 +1,154 @@
-import dotenv from "dotenv";
+// services/backend-api/src/server.ts
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import fastifyJwt from "@fastify/jwt";
-import fastifyOauth2 from "@fastify/oauth2";
-import "dotenv/config";
 
-// Type augmentation so Fastify “sees” githubOAuth2 and authenticate
-declare module "fastify" {
-  interface FastifyInstance {
-    githubOAuth2: {
-      getAccessTokenFromAuthorizationCodeFlow: (
-        request: any,
-      ) => Promise<{ token: { access_token: string } }>;
-      generateAuthorizationUri: (
-        request: any,
-        reply: any,
-      ) => string | Promise<string>;
-    };
-    authenticate: (request: any, reply: any) => Promise<void>;
-  }
-}
-
-// Temporary: Define types locally until shared import works
-interface GenerateTestRequest {
-  componentCode: string;
-  filePath: string;
-  testStyle: "minimal" | "comprehensive";
-}
-
-interface GenerateTestResponse {
-  success: boolean;
-  testCode?: string;
-  error?: string;
-}
-
-interface GitHubUser {
-  id: number;
-  login: string;
-  name?: string;
-  email?: string;
-  avatar_url?: string;
-}
-
-// Simple logger until shared import works
-const logger = {
-  info: (message: string, ...args: any[]) =>
-    console.log(`[INFO] ${message}`, ...args),
-  error: (message: string, ...args: any[]) =>
-    console.error(`[ERROR] ${message}`, ...args),
-  warn: (message: string, ...args: any[]) =>
-    console.warn(`[WARN] ${message}`, ...args),
-};
+const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "deep-seek-rtl-gen";
+const PORT = Number(process.env.PORT ?? 7070);
 
 const fastify = Fastify({ logger: false });
 
-// CORS: allow Authorization header for JWT
 await fastify.register(cors, {
   origin: true,
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type"],
 });
-[1];
 
-// JWT registration
-if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET is required");
-}
-await fastify.register(fastifyJwt, {
-  secret: process.env.JWT_SECRET,
-});
-[2];
-
-// Auth hook decoration + typing
-fastify.decorate("authenticate", async (request: any, reply: any) => {
-  try {
-    await request.jwtVerify();
-  } catch {
-    return reply.code(401).send({ error: "Unauthorized" });
-  }
-});
-[2];
-
-// GitHub OAuth2 registration
-if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
-  throw new Error("GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are required");
-}
-const GITHUB_REDIRECT_URI =
-  process.env.GITHUB_REDIRECT_URI ??
-  "http://localhost:7070/auth/github/callback";
-
-await fastify.register(fastifyOauth2, {
-  name: "githubOAuth2",
-  scope: ["read:user", "user:email"],
-  credentials: {
-    client: {
-      id: process.env.GITHUB_CLIENT_ID!,
-      secret: process.env.GITHUB_CLIENT_SECRET!,
-    },
-    auth: {
-      tokenHost: "https://github.com",
-      tokenPath: "/login/oauth/access_token",
-      authorizeHost: "https://github.com",
-      authorizePath: "/login/oauth/authorize",
-    },
-  },
-  startRedirectPath: "/auth/github/login",
-  callbackUri: GITHUB_REDIRECT_URI,
-});
-[1];
-
-// Health check
+// health
 fastify.get("/health", async () => {
-  const ollamaStatus = await checkOllama();
-  return {
-    status: "ok",
-    service: "backend-api",
-    ollama: ollamaStatus ? "connected" : "disconnected",
-  };
-});
-
-// Optional convenience endpoint to obtain GitHub authorize URL (for clients that handle redirects)
-fastify.get("/auth/github/url", async (request, reply) => {
   try {
-    const uri = fastify.githubOAuth2.generateAuthorizationUri(request, reply);
-    const url =
-      typeof (uri as any).then === "function"
-        ? await (uri as any)
-        : (uri as string);
-    return reply.send({ authUrl: url });
-  } catch (err) {
-    logger.error("Failed to generate GitHub auth URL:", err);
-    return reply.code(500).send({ error: "Failed to generate auth URL" });
-  }
-});
-[1];
-
-// OAuth callback → exchange code, fetch GitHub user, issue JWT
-fastify.get("/auth/github/callback", async (request, reply) => {
-  try {
-    const { token } =
-      await fastify.githubOAuth2.getAccessTokenFromAuthorizationCodeFlow(
-        request,
-      );
-    const accessToken = token?.access_token as string;
-    if (!accessToken) {
-      return reply
-        .code(400)
-        .send({ error: "Missing access token from GitHub" });
-    }
-
-    const userResp = await fetch("https://api.github.com/user", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "User-Agent": "rtl-extension",
-      },
+    const r = await fetch(`${OLLAMA_URL}/api/tags`, {
+      signal: AbortSignal.timeout(3000),
     });
-    if (!userResp.ok) {
-      return reply.code(401).send({ error: "Failed to get GitHub user" });
-    }
-    const ghUser = (await userResp.json()) as GitHubUser;
-
-    // Fetch primary email if not present
-    let email: string | null | undefined = ghUser.email;
-    if (!email) {
-      const emailsResp = await fetch("https://api.github.com/user/emails", {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "User-Agent": "rtl-extension",
-        },
-      });
-      if (emailsResp.ok) {
-        const arr = (await emailsResp.json()) as Array<{
-          email: string;
-          primary: boolean;
-        }>;
-        email = arr.find((e) => e.primary)?.email ?? undefined;
-      }
-    }
-
-    const jwtPayload = {
-      sub: String(ghUser.id),
-      login: ghUser.login,
-      name: ghUser.name ?? ghUser.login,
-      email: email ?? undefined,
-      avatarUrl: ghUser.avatar_url,
-      provider: "github",
+    return {
+      status: "ok",
+      ollama: r.ok ? "connected" : "disconnected",
+      model: OLLAMA_MODEL,
     };
-    const jwt = await reply.jwtSign(jwtPayload, { expiresIn: "7d" });
-
-    return reply.send({ token: jwt, user: jwtPayload });
-  } catch (err) {
-    logger.error("GitHub OAuth callback error:", err);
-    return reply.code(500).send({ error: "OAuth callback failed" });
+  } catch {
+    return { status: "ok", ollama: "disconnected", model: OLLAMA_MODEL };
   }
 });
-[1][2];
 
-// Token verification helper
-fastify.get(
-  "/auth/verify",
-  { preValidation: [fastify.authenticate] },
-  async (request: any) => {
-    return { valid: true, user: request.user };
-  },
-);
-[2];
+type Body = {
+  componentCode: string; // required
+  testStyle?: "minimal" | "comprehensive";
+  stream?: boolean; // default false
+};
 
-// Main endpoint - generate tests (protected)
-fastify.post<{ Body: GenerateTestRequest; Reply: GenerateTestResponse }>(
-  "/api/generate-tests",
-  { preValidation: [fastify.authenticate] },
-  async (request, reply) => {
-    try {
-      const { componentCode, filePath, testStyle } = request.body;
+// main endpoint
+fastify.post<{ Body: Body }>("/api/generate-tests", async (request, reply) => {
+  const {
+    componentCode,
+    testStyle = "comprehensive",
+    stream = false,
+  } = request.body ?? {};
+  if (!componentCode)
+    return reply
+      .code(400)
+      .send({ success: false, error: "componentCode is required" });
 
-      logger.info(`Generating ${testStyle} tests for: ${filePath}`);
+  const prompt = buildPrompt(componentCode, testStyle);
 
-      const ollamaUrl = process.env.OLLAMA_URL ?? "http://localhost:11434";
-      const ollamaResponse = await fetch(`${ollamaUrl}/api/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "deepseek-coder-v2",
-          prompt: buildPrompt(componentCode, testStyle),
-          stream: false,
-          options: {
-            temperature: 0.1,
-            top_p: 0.9,
-            num_ctx: 4096,
-          },
-        }),
-      });
+  const body = {
+    model: OLLAMA_MODEL,
+    prompt,
+    stream,
+    keep_alive: "0",
+    options: {
+      temperature: 0.2,
+      top_p: 0.95,
+      repeat_penalty: 1.05,
+      num_ctx: 3072,
+      num_predict: 1200,
+    },
+  };
 
-      if (!ollamaResponse.ok) {
-        throw new Error(`Ollama error: ${ollamaResponse.status}`);
+  const r = await fetch(`${OLLAMA_URL}/api/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    return reply
+      .code(502)
+      .send({ success: false, error: `Ollama error ${r.status}: ${text}` });
+  }
+
+  if (stream) {
+    // pass-through streaming to client and mirror to server console
+    reply.raw.setHeader("Content-Type", "text/plain; charset=utf-8");
+    reply.raw.setHeader("Transfer-Encoding", "chunked");
+    let acc = "";
+    for await (const chunk of r.body as any) {
+      const lines = chunk.toString().split("\n").filter(Boolean);
+      for (const line of lines) {
+        try {
+          const j = JSON.parse(line);
+          if (j.response) {
+            acc += j.response;
+            process.stdout.write(j.response); // console
+            reply.raw.write(j.response); // client
+          }
+          if (j.done) {
+            reply.raw.end();
+            return;
+          }
+        } catch {
+          /* ignore partial lines */
+        }
       }
-
-      const ollamaData = (await ollamaResponse.json()) as { response: string };
-
-      return {
-        success: true,
-        testCode: ollamaData.response,
-      };
-    } catch (error) {
-      logger.error("Generate tests error:", error);
-      return reply.status(500).send({
-        success: false,
-        error:
-          "Failed to generate tests. Make sure Ollama is reachable and deepseek-coder-v2 is installed.",
-      });
     }
-  },
-);
+    reply.raw.end();
+    return;
+  } else {
+    const data = (await r.json()) as { response: string };
+    // also log a snippet to console
+    const cleaned = cleanCode(data.response);
+    console.log("[GEN]", cleaned.slice(0, 200));
+    return reply.send({ success: true, testCode: cleaned });
+  }
+});
 
-// ----- Helpers (ensure they are in scope) -----
-function buildPrompt(componentCode: string, style: string): string {
-  const styleInstructions =
+function buildPrompt(componentCode: string, style: string) {
+  const styleLine =
     style === "minimal"
-      ? "Generate basic RTL tests focusing on rendering and simple interactions."
-      : "Generate comprehensive RTL tests covering all functionality, edge cases, and accessibility.";
+      ? "Write basic but correct RTL tests focusing on rendering and a couple of interactions."
+      : "Write comprehensive RTL tests covering rendering, user flows, edge cases, and accessibility.";
 
-  return `You are an expert React Testing Library developer. ${styleInstructions}
+  return `You are an expert in React Testing Library and Jest.
+${styleLine}
 
-Component code:
+Component:
 \`\`\`tsx
 ${componentCode}
 \`\`\`
 
 Rules:
-- Use render, screen from @testing-library/react  
-- Use userEvent from @testing-library/user-event
-- Test user behavior, not implementation details
-- Include proper imports at the top
-- Use describe/test structure
-- Focus on accessibility where possible
-- Generate ONLY the test code, no explanations
-- Neglect the first 6 characters, and the last 3 characters if they are backticks
-
-Test code:`;
+- Use: import { render, screen } from "@testing-library/react"; import userEvent from "@testing-library/user-event";
+- Prefer accessible queries (getByRole/findByRole) and jest-dom matchers.
+- Test user behavior, not implementation details. Use userEvent.
+- Use describe/test structure.
+- Output ONLY the test file content (no backticks, no explanations).`;
 }
 
-async function checkOllama(): Promise<boolean> {
-  try {
-    const ollamaUrl = process.env.OLLAMA_URL ?? "http://localhost:11434";
-    const response = await fetch(`${ollamaUrl}/api/tags`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function verifyOllamaSetup(): Promise<void> {
-  logger.info("Checking Ollama connection...");
-
-  try {
-    const ollamaUrl = process.env.OLLAMA_URL ?? "http://localhost:11434";
-    const response = await fetch(`${ollamaUrl}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (!response.ok) {
-      logger.error(
-        `Ollama API returned status: ${response.status}. Is Ollama running?`,
-      );
-      process.exit(1);
-    }
-
-    const data = (await response.json()) as { models?: { name: string }[] };
-
-    const hasModel =
-      data.models?.some((m) => m.name === "deepseek-coder-v2:latest") ||
-      data.models?.some((m) => m.name?.startsWith("deepseek-coder-v2")) ||
-      false;
-
-    if (!hasModel) {
-      logger.error(
-        "deepseek-coder-v2 model is not installed in Ollama. Please install it.",
-      );
-      process.exit(1);
-    }
-  } catch (error) {
-    logger.error(
-      "Ollama connection failed. Make sure Ollama is running and deepseek-coder-v2 model is installed.",
-      error,
-    );
-    process.exit(1);
-  }
-
-  logger.info("Ollama is connected and ready.");
+function cleanCode(output: string): string {
+  return output
+    .replace(/^\s*```[a-z]*\s*/i, "") // remove opening ```
+    .replace(/```$/, "") // remove closing ```
+    .trim();
 }
 
 const start = async () => {
-  try {
-    await verifyOllamaSetup();
-    await fastify.listen({ port: 7070, host: "0.0.0.0" });
-    logger.info("Backend API running on port 7070");
-    logger.info("Ready to generate RTL tests!");
-  } catch (err) {
-    logger.error("Failed to start backend:", err);
-    process.exit(1);
-  }
+  const ok = await fetch(`${OLLAMA_URL}/api/tags`)
+    .then((r) => r.ok)
+    .catch(() => false);
+  console.log(
+    `[INFO] Ollama: ${ok ? "connected" : "disconnected"}  model=${OLLAMA_MODEL}`,
+  );
+  await fastify.listen({ port: PORT, host: "0.0.0.0" });
+  console.log(`[INFO] Backend API on http://localhost:${PORT}`);
 };
 
 start();

@@ -1,36 +1,37 @@
- ```tsx
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import TestComponent from './path_to_component'; // Adjust the import path accordingly
+import TestComponent from './TestComponent';
 
 describe('TestComponent', () => {
-  const props = {
-    name: 'World',
-    onClick: jest.fn()
-  };
+  const mockOnClick = jest.fn();
 
-  it('renders correctly with default props', () => {
-    render(<TestComponent {...props} />);
-    expect(screen.getByText(/Hello World/i)).toBeInTheDocument();
+  it('renders with correct name and button', () => {
+    render(<TestComponent name="Alice" onClick={mockOnClick} />);
+    expect(screen.getByRole('heading', { name: /hello alice/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /click me/i })).toBeInTheDocument();
   });
 
   it('calls onClick when button is clicked', async () => {
-    render(<TestComponent {...props} />);
-    userEvent.click(screen.getByRole('button', { name: /click me/i }));
-    expect(props.onClick).toHaveBeenCalledTimes(1);
+    render(<TestComponent name="Bob" onClick={mockOnClick} />);
+    const btn = screen.getByRole('button', { name: /click me/i });
+    await userEvent.click(btn);
+    expect(mockOnClick).toHaveBeenCalledTimes(1);
   });
 
-  it('matches snapshot', () => {
-    const { asFragment } = render(<TestComponent {...props} />);
-    expect(asFragment()).toMatchSnapshot();
+  it('updates on re-render with different props', () => {
+    const { rerender } = render(<TestComponent name="Charlie" onClick={mockOnClick} />);
+    let btn = screen.getByRole('button', { name: /click me/i });
+    expect(btn).toHaveAttribute('name', 'Charlie');
+
+    rerender(<TestComponent name="Delta" onClick={mockOnClick} />);
+    btn = screen.getByRole('button', { name: /click me/i });
+    expect(btn).toHaveAttribute('name', 'Delta');
   });
 
-  it('is accessible using axe-core for accessibility violations', async () => {
-    const { container } = render(<TestComponent {...props} />);
-    const results = await axe(container);
-    expect(results).toHaveNoViolations();
+  it('is accessible with correct aria-labels', () => {
+    render(<TestComponent name="Echo" onClick={mockOnClick} />);
+    expect(screen.getByRole('heading', { name: /hello echo/i })).toHaveTextContent('Hello Echo');
+    expect(screen.getByRole('button', { name: /click me/i })).toHaveTextContent('Click me');
   });
 });
-```
