@@ -12,7 +12,9 @@
   ],
   "activationEvents": [
     "onLanguage:javascriptreact",
-    "onLanguage:typescriptreact"
+    "onLanguage:typescriptreact",
+    "onCommand:rtlTestGenerator.login",
+    "onCommand:rtlTestGenerator.logout"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -21,6 +23,14 @@
         "command": "rtlTestGenerator.generateTests",
         "title": "Generate RTL Tests",
         "category": "RTL"
+      },
+      {
+        "command": "rtlTestGenerator.login",
+        "title": "RTL: Login with GitHub"
+      },
+      {
+        "command": "rtlTestGenerator.logout",
+        "title": "RTL: Logout"
       }
     ],
     "menus": {
