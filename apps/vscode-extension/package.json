@@ -1,57 +1,174 @@
 {
-  "name": "rtl-test-generator-ai",
-  "displayName": "RTL Test Generator AI",
-  "description": "Generate React Testing Library tests using AI",
-  "publisher": "BakhteeArslan",
-  "version": "0.1.0",
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "categories": [
-    "Testing"
-  ],
-  "activationEvents": [
-    "onLanguage:javascriptreact",
-    "onLanguage:typescriptreact",
-    "onCommand:rtlTestGenerator.login",
-    "onCommand:rtlTestGenerator.logout"
-  ],
-  "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "rtlTestSuite",
+          "title": "RTL Tests",
+          "icon": "./media/icon-dark.svg"
+        }
+      ]
+    },
+    "views": {
+      "rtlTestSuite": [
+        {
+          "id": "rtlTestAssistant.chat",
+          "name": "Test Assistant",
+          "icon": "./media/icon-dark.svg"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "rtlTestGenerator.generateTests",
-        "title": "Generate RTL Tests",
+        "command": "rtlTestGenerator.generateInline",
+        "title": "Preview RTL Tests",
         "category": "RTL"
       },
       {
-        "command": "rtlTestGenerator.login",
-        "title": "RTL: Login with GitHub"
+        "command": "rtlTestGenerator.generateSelection",
+        "title": "Preview RTL Tests for Selection",
+        "category": "RTL"
       },
       {
-        "command": "rtlTestGenerator.logout",
-        "title": "RTL: Logout"
+        "command": "rtlTestGenerator.generateWorkspace",
+        "title": "Generate RTL Tests for Workspace",
+        "category": "RTL"
+      },
+      {
+        "command": "rtlTestGenerator.openTestAssistant",
+        "title": "Open RTL Test Assistant"
+      },
+      {
+        "command": "rtlTestGenerator.reviewTest",
+        "title": "Review RTL Test (LLM)",
+        "category": "RTL"
+      },
+      {
+        "command": "rtlTestGenerator.toggleDryRun",
+        "title": "Toggle RTL Dry Run",
+        "category": "RTL"
       }
     ],
     "menus": {
+      "editor/title": [
+        {
+          "command": "rtlTestGenerator.generateInline",
+          "when": "resourceLangId == typescriptreact",
+          "group": "navigation@1"
+        }
+      ],
       "editor/context": [
         {
-          "command": "rtlTestGenerator.generateTests",
-          "when": "resourceExtname == .jsx || resourceExtname == .tsx",
-          "group": "rtl"
+          "command": "rtlTestGenerator.generateSelection",
+          "when": "editorLangId == typescriptreact && editorTextFocus && !editorHasSelection",
+          "group": "rtlTestGenerator@1"
+        },
+        {
+          "command": "rtlTestGenerator.generateSelection",
+          "when": "editorLangId == typescriptreact && editorHasSelection",
+          "group": "rtlTestGenerator@0"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "rtlTestGenerator.generateInline"
+        },
+        {
+          "command": "rtlTestGenerator.generateSelection"
+        },
+        {
+          "command": "rtlTestGenerator.generateWorkspace"
+        },
+        {
+          "command": "rtlTestGenerator.openTestAssistant"
+        },
+        {
+          "command": "rtlTestGenerator.reviewTest"
+        },
+        {
+          "command": "rtlTestGenerator.toggleDryRun"
         }
       ]
+    },
+    "configuration": {
+      "properties": {
+        "rtlGen.model": {
+          "type": "string",
+          "default": "deep-seek-rtl-gen",
+          "description": "Model identifier passed to the backend"
+        },
+        "rtlGen.ollamaUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Local Ollama base URL"
+        },
+        "rtlGen.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:7070",
+          "description": "Backend API base URL"
+        },
+        "rtlGen.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Optional API key sent as x-api-key"
+        },
+        "rtlGen.defaultTestDir": {
+          "type": "string",
+          "default": "__tests__",
+          "description": "Default relative directory for generated tests"
+        },
+        "rtlGen.stylePreset": {
+          "type": "string",
+          "enum": [
+            "strict-a11y",
+            "balanced",
+            "legacy"
+          ],
+          "default": "strict-a11y",
+          "description": "Guide the generator toward accessibility heavy, balanced, or legacy selectors"
+        },
+        "rtlGen.strictA11y": {
+          "type": "boolean",
+          "default": true,
+          "description": "Force accessible queries when possible"
+        },
+        "rtlGen.useUserEvent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prefer @testing-library/user-event over fireEvent"
+        },
+        "rtlGen.timeoutMs": {
+          "type": "number",
+          "default": 45000,
+          "description": "Timeout in milliseconds for backend calls"
+        },
+        "rtlGen.logLevel": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug"
+          ],
+          "default": "info",
+          "description": "Verbosity of the extension output channel"
+        },
+        "rtlGen.batchMaxFiles": {
+          "type": "number",
+          "default": 20,
+          "description": "Maximum files that batch generation will queue"
+        },
+        "rtlGen.enableTelemetry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt-in telemetry for anonymised feature usage"
+        },
+        "rtlGen.dryRun": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview only, do not write files unless explicitly confirmed"
+        }
+      }
     }
-  },
-  "scripts": {
-    "dev": "tsc -w",
-    "build": "tsc",
-    "package": "vsce package"
-  },
-  "devDependencies": {
-    "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^2.22.0",
-    "typescript": "^5.3.3"
-  },
-  "dependencies": {}
+  }
 }

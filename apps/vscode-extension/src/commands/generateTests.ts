@@ -61,7 +61,7 @@ export async function generateTests(
         title: `RTL Test Generator`,
         cancellable: true,
       },
-      async (progress, tokenCancel) => {
+      async (progress: any, tokenCancel: any) => {
         progress.report({
           increment: 0,
           message: `Analyzing ${componentName}...`,
