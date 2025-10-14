@@ -1,0 +1,105 @@
+{
+  "name": "rtl-test-generator",
+  "displayName": "RTL Test Generator",
+  "description": "Automatically generate React Testing Library unit tests for UI components using AI",
+  "version": "0.0.1",
+  "publisher": "rtl-tools",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "RTL Test Generator"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:rtl-generator.generateTest",
+    "onView:rtl-generator-sidebar"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "rtl-generator.generateTest",
+        "title": "Generate RTL Test",
+        "category": "RTL Test Generator"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "rtl-generator.generateTest",
+          "group": "rtl",
+          "when": "resourceExtname == .tsx || resourceExtname == .jsx"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "rtl-generator.generateTest",
+          "group": "rtl",
+          "when": "editorLangId == typescriptreact || editorLangId == javascriptreact"
+        }
+      ]
+    },
+    "viewContainers": {
+      "activitybar": [
+        {
+          "id": "rtl-generator-sidebar",
+          "title": "RTL Generator",
+          "icon": "media/rtl-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "rtl-generator-sidebar": [
+        {
+          "id": "rtl-generator.sidebarView",
+          "name": "RTL Generator"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RTL Test Generator",
+      "properties": {
+        "rtlTestGenerator.apiGatewayUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Base URL for the API gateway used to generate tests."
+        },
+        "rtlTestGenerator.testOutputDirectory": {
+          "type": "string",
+          "default": "__tests__",
+          "description": "Relative (from the component file) or absolute directory for generated tests."
+        },
+        "rtlTestGenerator.autoSaveGeneratedTests": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically save generated tests to disk. When disabled, tests open in an untitled editor."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build:webview": "npm --prefix webview install --no-audit --no-fund && npm --prefix webview run build",
+    "dev:webview": "npm --prefix webview run dev",
+    "watch:webview": "npm --prefix webview run dev",
+    "build": "npm run build:webview && node ./esbuild.config.mjs",
+    "watch": "node ./esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "npm run build && vsce package",
+    "vscode:prepublish": "npm run build",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.7.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.82.0",
+    "@vscode/vsce": "^2.27.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: var(--vscode-color-scheme, light);
+}
+
+body {
+  font-family: theme('fontFamily.sans');
+  background-color: theme('colors.background');
+  color: theme('colors.foreground');
+}

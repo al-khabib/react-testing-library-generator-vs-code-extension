@@ -1,0 +1,110 @@
+version: '3.9'
+
+services:
+  api-gateway:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./services/api-gateway:/app
+    command: sh -c "npm install && npm run dev"
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: api-gateway
+      PORT: 3000
+      CODE_ANALYSIS_URL: http://code-analysis:3001
+      LLM_SERVICE_URL: http://llm-service:3002
+      TEST_VALIDATION_URL: http://test-validation:3003
+      REDIS_URL: redis://redis:6379
+      REQUEST_TIMEOUT_MS: 60000
+    depends_on:
+      - code-analysis
+      - llm-service
+      - test-validation
+      - redis
+    ports:
+      - '3000:3000'
+    networks:
+      - rtl-network
+    restart: unless-stopped
+
+  code-analysis:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./services/code-analysis:/app
+    command: sh -c "npm install && npm run dev"
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: code-analysis
+      PORT: 3001
+      API_GATEWAY_URL: http://api-gateway:3000
+      LLM_SERVICE_URL: http://llm-service:3002
+      TEST_VALIDATION_URL: http://test-validation:3003
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - rtl-network
+    restart: unless-stopped
+
+  llm-service:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./services/llm-service:/app
+    command: sh -c "npm install && npm run dev"
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: llm-service
+      PORT: 3002
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MODEL_NAME: llama3:8b
+      MAX_TOKENS: 512
+      TEMPERATURE: 0.3
+      API_GATEWAY_URL: http://api-gateway:3000
+      CODE_ANALYSIS_URL: http://code-analysis:3001
+      TEST_VALIDATION_URL: http://test-validation:3003
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - rtl-network
+    restart: unless-stopped
+
+  test-validation:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./services/test-validation:/app
+    command: sh -c "npm install && npm run dev"
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: test-validation
+      PORT: 3003
+      API_GATEWAY_URL: http://api-gateway:3000
+      CODE_ANALYSIS_URL: http://code-analysis:3001
+      LLM_SERVICE_URL: http://llm-service:3002
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - rtl-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    expose:
+      - '6379'
+    networks:
+      - rtl-network
+    restart: unless-stopped
+
+networks:
+  rtl-network:
+    driver: bridge
+
+volumes:
+  redis-data:
